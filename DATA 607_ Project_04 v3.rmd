@@ -1,0 +1,174 @@
+---
+title: "DATA 607, Project 3: The Most Valued Data Science Skills"
+date: "March 25, 2018"
+output:
+  html_document:
+    theme: yeti
+    highlight: haddock
+    toc: true
+    toc_depth: 3
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<hr>
+
+### Intro
+
+[Regurgitate project parameters]
+
+
+Set up our work space
+```{r, echo = F}
+# Background stuff - tweak and conceal as needed
+
+# Clean up our workspace
+rm(list = ls())
+
+# Identify the workbench
+wd.path <- "C:/Users/jlobr/OneDrive/Learning/_CUNY_SPS_MSDS/2018_Spring/DATA 607/"
+```
+
+```{r}
+# Go to the library - thank you open source!
+library(tm)
+library(RTextTools)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+
+# Hygiene factor
+setwd(file.path(wd.path, "Projects", "Project 4"))
+```
+
+### Approach
+
+[Describe goal]
+[Outline approach]
+
+
+### Steps
+
+**Step: Ingest spam and ham datasets.**
+```{r}
+# Message sets were downloaded from spamassassin's archive to a local folder and unzippedper the tutorial (could attempt to implement and automate this in R if time permits)
+
+# Do we need to combine ham and spam in the same corpus for any analytical purpose?  If so, what's a straightforward way to distinguish between messages in each bucket?
+
+# Set directories
+spam.directory <- file.path(getwd(), "spamundham", "spam")
+ham.directory <- file.path(getwd(), "spamundham", "easy_ham")
+
+# Set data (may not be necessary depending on corpus setup)
+spam.list <- list.files(spam.directory)
+ham.list <- list.files(ham.directory)
+```
+
+
+**Step: Create spam and ham corpuses to feed text mining functions.** 
+```{r}
+# Create spam and ham corpuses
+# Credit azabet:  https://github.com/azabet/Machine-Learning/blob/master/spam-filter.R
+spam.corpus <- Corpus(DirSource(spam.directory))
+ham.corpus <- Corpus(DirSource(ham.directory))
+
+# Clean each corpus, changing all text to lower case and removing punctuation, stopwords, and numbers.
+# Credit azabet:  https://github.com/azabet/Machine-Learning/blob/master/spam-filter.R
+# Review cleaning procedures to assess whether these steps are necessary / other steps are needed
+# If there's time, loop for spam and ham labels to de-duplicate code
+spam.corpus.clean <- spam.corpus %>%
+  tm_map(tolower) %>% 
+  tm_map(removePunctuation) %>% 
+  tm_map(removeWords, stopwords('english')) %>% 
+  tm_map(removeNumbers)
+ham.corpus.clean<- ham.corpus %>%
+  tm_map(tolower) %>% 
+  tm_map(removePunctuation) %>% 
+  tm_map(removeWords, stopwords('english')) %>% 
+  tm_map(removeNumbers)
+
+# Inspect cleaned corpuses for sense-check
+inspect(ham.corpus.clean[1])
+inspect(spam.corpus.clean[1])
+```
+
+**Step: "Tokenize" the dataesets, creating term-document and document-term matrices.**
+```{r}
+# Create Document-Term Matrices for ham and spam corpuses
+ham.dtm <- DocumentTermMatrix(ham.corpus.clean)
+spam.dtm <- DocumentTermMatrix(spam.corpus.clean)
+
+# Create Term-Document Matrices for ham and spam corpuses
+ham.tdm <- TermDocumentMatrix(ham.corpus.clean)
+spam.tdm <- TermDocumentMatrix(spam.corpus.clean)
+
+# Check output
+inspect(ham.dtm)
+inspect(spam.dtm)
+
+# Look into whether there's anything to say about this sparsity
+
+# Remove some sparsity
+ham.dtm.rich <- removeSparseTerms(ham.dtm, (1 - 10 / length(ham.corpus.clean)))
+spam.dtm.rich <- removeSparseTerms(spam.dtm, (1 - 10 / length(spam.corpus.clean)))
+ham.dtm.rich
+spam.dtm.rich
+
+# Create a label vector for each, ham and spam
+ham_labels <- prescindMeta(ham.corpus.clean)
+```
+
+**Step: Create training and test sets for the learning algorithms.**
+```{r}
+# Partition training and test sets
+# We can take two approaches - one that splits up at the file level, another that splits at the corpus level.  Corpus is implemented below, as it seems to make for simpler approach to controlling sampling rate.
+# What should the sampling rate be based on n?  Holdout of 10% for test?
+# Implement once on each folder
+
+# Corpus-oriented approach to sampling to partition for training and test sets
+# This is based on a samping rate holdour of 10% for the test set.  We can tweak as we see appropriate - perhaps there's a benchmark rate?
+training = .9 # set training between 0 and 1 as sampling rate
+
+# First, split the cleaned spam corpus into train and test
+spam.n <- length(spam.corpus.clean)
+spam.n.test <- spam.n * (1 - training)
+spam.test.cut <- sample(1:spam.n, size = spam.n.test, replace = F)
+spam.train.cut <- setdiff(1:spam.n, spam.test.cut)
+spam.train <- spam.corpus.clean[spam.train.cut]
+spam.test <- spam.corpus.clean[spam.test.cut]
+
+# Next, split the cleaned ham corpus into train and test
+ham.n <- length(ham.corpus.clean)
+ham.n.test <- ham.n * (1 - training)
+ham.test.cut <- sample(1:ham.n, size = ham.n.test, replace = F)
+ham.train.cut <- setdiff(1:ham.n, ham.test.cut)
+ham.train <- ham.corpus.clean[ham.train.cut]
+ham.test <- ham.corpus.clean[ham.test.cut]
+```
+
+**Step: Extract text from spam and ham documents.**
+```{r}
+# Found a spam filtering code snippet in the "Spam Filtering" chapter Machine Learning for Hackers around page 80.
+# Confirm we need this operation for downstream analysis.
+extract.msg = function(msg) {
+  con = file(msg, open = "rt", encoding = "latin1")
+  text = readLines(con)
+  msg = text[seq(which(text == "")[1] + 1, length(text),1)]
+  close(con)
+  return(paste(msg, collapse = "\\n"))
+}
+
+```
+
+**Step: Build classifier using training data**
+
+[Catalog additional step]
+
+[Should we attempt to use tidy approach to text mining, or should we just keep it to the "tm" package for this assignment?
+
+### Conclusions
